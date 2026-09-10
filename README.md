@@ -35,7 +35,7 @@ textbook values, `statsmodels`, and the dataset's known published result.
 
 ## Roadmap
 
-- **v0.1** — stats core: two-proportion test (lift, CI, p-value) + sample-size/MDE calculator, validated. *(in progress)*
+- **v0.1** — stats core: two-proportion test (lift, CI, p-value) + sample-size/MDE calculator, validated three ways (textbook · statsmodels · real Cookie Cats result). ✅ **done**
 - **v0.2** — working MVP: FastAPI + Postgres + React, JS SDK with deterministic assignment, exposure tracking, ingestion, results with CIs, SRM detection.
 - **v0.3** — guardrail metrics, segment analysis, quality-warning engine.
 - **v1.0** — CUPED, multiple-comparison correction, sequential testing, progressive rollout.
@@ -66,7 +66,8 @@ on Windows). It is gitignored and never committed.
 ```
 stats/          # the statistics core (pure functions, no I/O)
   proportions.py    # two-proportion test: lift, CI, p-value
-tests/          # textbook fixtures + statsmodels cross-checks
+  sample_size.py    # required sample size / MDE / power + duration
+tests/          # textbook fixtures + statsmodels cross-checks (32 tests)
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
 analysis/       # cookie_cats.py: the engine run on a real experiment
 ```
