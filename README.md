@@ -44,8 +44,22 @@ textbook values, `statsmodels`, and the dataset's known published result.
 
 ```bash
 pip install -r requirements.txt
-pytest -q
+pytest -q                          # 13 tests: textbook + statsmodels cross-checks
+
+# Analyse a real published experiment (needs a Kaggle token, see below)
+python data/download.py            # fetch Cookie Cats into data/raw/ (gitignored)
+python -m analysis.cookie_cats     # run the engine on 90k real players
 ```
+
+The engine reproduces the dataset's known result — moving the game's progression
+gate from level 30 to 40 significantly **hurt** 7-day retention (p = 0.0016) — which
+serves as a third validation alongside the textbook and statsmodels checks.
+
+### Kaggle token (for the real-data analysis)
+
+Create a token at kaggle.com → Settings → API Tokens → *Create Legacy API Key*, then
+place the downloaded `kaggle.json` at `~/.kaggle/kaggle.json` (`C:\Users\<you>\.kaggle\`
+on Windows). It is gitignored and never committed.
 
 ## Project layout
 
@@ -53,4 +67,6 @@ pytest -q
 stats/          # the statistics core (pure functions, no I/O)
   proportions.py    # two-proportion test: lift, CI, p-value
 tests/          # textbook fixtures + statsmodels cross-checks
+data/           # download.py: reproducible Kaggle pull (raw data gitignored)
+analysis/       # cookie_cats.py: the engine run on a real experiment
 ```
