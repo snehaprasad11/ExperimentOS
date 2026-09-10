@@ -5,8 +5,8 @@ first-class output* — it actively warns you when an experiment result cannot b
 (sample-ratio mismatch, peeking, missing exposure, users in multiple variants), because a
 confidently-wrong result is worse than no result at all.
 
-> **Status:** early development — building the statistics core first (v0.1), then the
-> ingestion + assignment platform on top of it.
+**🔗 Live demo:** https://experiment-os-wheat.vercel.app
+(React dashboard on Vercel → FastAPI on Render → PostgreSQL on Supabase)
 
 ## Why this exists
 
