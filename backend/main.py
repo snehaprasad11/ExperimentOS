@@ -27,6 +27,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -77,6 +78,12 @@ def require_project(
     if row is None:
         raise HTTPException(status_code=403, detail="invalid admin key")
     return str(row[0])
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    # Bare API URL -> the interactive docs, instead of a 404.
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health")
