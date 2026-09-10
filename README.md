@@ -72,7 +72,9 @@ assignment/     # deterministic variant assignment (Python side)
 sdk/            # the JS SDK
   assign.mjs        # same hash + mapping, byte-identical to Python
   verify_parity.mjs # checks JS against the shared golden fixture
-tests/          # 46 tests: stats + assignment + cross-language parity
+tracking/       # exposure tracking (the analysis population)
+  exposure.py       # idempotency, first-exposure-wins, leakage, assignment audit
+tests/          # 53 tests: stats + assignment + parity + exposure
   fixtures/         # assignment_golden.json: the parity contract
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
 analysis/       # cookie_cats.py: the engine run on a real experiment
@@ -89,3 +91,12 @@ cases, so both sides always agree with no per-request network call or server sta
 python -m scripts.generate_parity_fixture   # regenerate the contract
 node sdk/verify_parity.mjs                   # JS must match Python exactly
 ```
+
+### Exposure ≠ assignment (where validity is won)
+
+Assignment happens for every user the SDK evaluates; **exposure** fires only when the
+user actually sees the variant, and the analysis population is the *exposed* users. The
+tracker enforces idempotency (retries can't inflate counts), *first-exposure-wins* (a user
+belongs to exactly one variant), flags **cross-variant leakage**, and runs an independent
+**assignment audit** — re-deriving each exposure with the same hash the SDK used and
+flagging any disagreement (stale SDK, config drift, tampering).
