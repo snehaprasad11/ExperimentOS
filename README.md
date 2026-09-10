@@ -36,7 +36,7 @@ textbook values, `statsmodels`, and the dataset's known published result.
 ## Roadmap
 
 - **v0.1** — stats core: two-proportion test (lift, CI, p-value) + sample-size/MDE calculator, validated three ways (textbook · statsmodels · real Cookie Cats result). ✅ **done**
-- **v0.2** — working MVP: FastAPI + Postgres + React, JS SDK with deterministic assignment, exposure tracking, ingestion, results with CIs, SRM detection.
+- **v0.2** — working MVP: FastAPI + Postgres + React, JS SDK with deterministic assignment, exposure tracking, ingestion, results with CIs, SRM detection. *(in progress: deterministic assignment core — Python + JS SDK, cross-language parity verified over 1,800 cases)*
 - **v0.3** — guardrail metrics, segment analysis, quality-warning engine.
 - **v1.0** — CUPED, multiple-comparison correction, sequential testing, progressive rollout.
 
@@ -67,7 +67,25 @@ on Windows). It is gitignored and never committed.
 stats/          # the statistics core (pure functions, no I/O)
   proportions.py    # two-proportion test: lift, CI, p-value
   sample_size.py    # required sample size / MDE / power + duration
-tests/          # textbook fixtures + statsmodels cross-checks (32 tests)
+assignment/     # deterministic variant assignment (Python side)
+  core.py           # FNV-1a hash -> bucket -> variant, no state, no network
+sdk/            # the JS SDK
+  assign.mjs        # same hash + mapping, byte-identical to Python
+  verify_parity.mjs # checks JS against the shared golden fixture
+tests/          # 46 tests: stats + assignment + cross-language parity
+  fixtures/         # assignment_golden.json: the parity contract
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
 analysis/       # cookie_cats.py: the engine run on a real experiment
+```
+
+### Deterministic assignment (the heart)
+
+A user's variant is a pure local computation — `fnv1a("experiment_id:user_id") % 10000`
+mapped to a variant by cumulative allocation. The **same** function is implemented in
+Python (backend audit) and JavaScript (browser SDK), and verified byte-identical over 1,800
+cases, so both sides always agree with no per-request network call or server state.
+
+```bash
+python -m scripts.generate_parity_fixture   # regenerate the contract
+node sdk/verify_parity.mjs                   # JS must match Python exactly
 ```
