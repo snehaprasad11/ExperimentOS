@@ -55,6 +55,15 @@ The engine reproduces the dataset's known result — moving the game's progressi
 gate from level 30 to 40 significantly **hurt** 7-day retention (p = 0.0016) — which
 serves as a third validation alongside the textbook and statsmodels checks.
 
+### Run the API
+
+```bash
+cp .env.example .env          # then paste your Postgres (Supabase) URL into .env
+python -m db.apply_schema     # create the tables
+uvicorn backend.main:app --reload
+# open http://localhost:8000/docs for interactive API docs
+```
+
 ### Kaggle token (for the real-data analysis)
 
 Create a token at kaggle.com → Settings → API Tokens → *Create Legacy API Key*, then
@@ -74,7 +83,10 @@ sdk/            # the JS SDK
   verify_parity.mjs # checks JS against the shared golden fixture
 tracking/       # exposure tracking (the analysis population)
   exposure.py       # idempotency, first-exposure-wins, leakage, assignment audit
-tests/          # 53 tests: stats + assignment + parity + exposure
+backend/        # FastAPI app wrapping the core in an HTTP API
+  main.py           # endpoints; config.py + db.py for settings + sessions
+db/             # schema.sql (spec section 10) + apply_schema.py
+tests/          # 57 tests: stats + assignment + parity + exposure + api
   fixtures/         # assignment_golden.json: the parity contract
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
 analysis/       # cookie_cats.py: the engine run on a real experiment
