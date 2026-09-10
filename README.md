@@ -68,6 +68,16 @@ uvicorn backend.main:app --reload
 # open http://localhost:8000/docs for interactive API docs
 ```
 
+### Run the dashboard
+
+```bash
+cd dashboard && npm install && npm run dev
+# open http://localhost:5173  (dev server proxies /v1 -> the API on :8000)
+```
+
+The dashboard's Plan page calls the live calculator endpoint; Experiments and
+Results pages are in progress.
+
 **Endpoints so far**
 
 | Method | Path | Auth | Purpose |
@@ -106,6 +116,7 @@ quality/        # validity checks (SRM chi-square, threshold-strict)
 backend/        # FastAPI app wrapping the core in an HTTP API
   main.py           # endpoints; config.py + db.py + tables.py
 db/             # schema.sql (spec section 10) + apply_schema.py
+dashboard/      # React + TypeScript dashboard (Vite), consumes the API
 tests/          # 64 tests: stats + assignment + parity + exposure + srm + api
   fixtures/         # assignment_golden.json: the parity contract
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
