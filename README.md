@@ -43,8 +43,8 @@ textbook values, `statsmodels`, and the dataset's known published result.
 ## Getting started
 
 ```bash
-pip install -r requirements.txt
-pytest -q                          # 13 tests: textbook + statsmodels cross-checks
+pip install -r requirements-dev.txt   # runtime + tests/analysis (server uses requirements.txt)
+pytest -q                          # textbook + statsmodels cross-checks
 
 # Analyse a real published experiment (needs a Kaggle token, see below)
 python data/download.py            # fetch Cookie Cats into data/raw/ (gitignored)
