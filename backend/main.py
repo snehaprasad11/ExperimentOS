@@ -22,16 +22,21 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import datetime, timezone
+from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from stats import required_sample_size
+from quality import srm_test
+from stats import required_sample_size, two_proportion_test
 
 from .db import get_db
+from .tables import exposures as exposures_t
+from .tables import metric_events as metric_events_t
 
 app = FastAPI(title="ExperimentOS API", version="0.2.0")
 
@@ -246,3 +251,214 @@ def get_config(sdk_key: str, db: Session = Depends(get_db)) -> dict:
 
     return {"experiments": experiments,
             "fetched_at": datetime.now(timezone.utc).isoformat()}
+
+
+# ---------------------------------------------------------------------------
+# Event ingestion (public, keyed by sdk_key). Idempotent + batched.
+# ---------------------------------------------------------------------------
+class EventIn(BaseModel):
+    event_id: str = Field(min_length=1)
+    type: Literal["exposure", "metric"]
+    user_id: str = Field(min_length=1)
+    occurred_at: datetime | None = None
+    experiment_key: str | None = None   # exposure
+    variant_key: str | None = None      # exposure
+    metric_key: str | None = None       # metric
+    value: float = 1.0
+
+
+class EventBatch(BaseModel):
+    events: list[EventIn] = Field(min_length=1)
+
+
+def _bulk_upsert(db, table, rows, conflict_cols, returning_col, chunk=1000):
+    """Insert rows, ignoring conflicts (idempotency / first-write-wins).
+
+    Dedupes within the batch by the conflict key (first wins), then inserts in
+    chunked multi-row statements. Returns the number of rows actually inserted.
+    """
+    seen, unique = set(), []
+    for r in rows:
+        key = tuple(r[c] for c in conflict_cols)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(r)
+
+    inserted = 0
+    for i in range(0, len(unique), chunk):
+        part = unique[i:i + chunk]
+        stmt = (pg_insert(table).values(part)
+                .on_conflict_do_nothing(index_elements=conflict_cols)
+                .returning(returning_col))
+        inserted += len(db.execute(stmt).fetchall())
+    return inserted
+
+
+@app.post("/v1/events", status_code=202)
+def ingest_events(
+    batch: EventBatch,
+    x_sdk_key: str = Header(...),
+    db: Session = Depends(get_db),
+) -> dict:
+    proj = db.execute(
+        text("select id from projects where sdk_key = :k"), {"k": x_sdk_key},
+    ).fetchone()
+    if proj is None:
+        raise HTTPException(status_code=404, detail="unknown sdk_key")
+    project_id = str(proj[0])
+
+    exp_map = {
+        k: str(i) for k, i in db.execute(
+            text("select key, id from experiments where project_id = :p"),
+            {"p": project_id},
+        ).fetchall()
+    }
+
+    now = datetime.now(timezone.utc)
+    exposure_rows, metric_rows, rejected = [], [], 0
+    for e in batch.events:
+        ts = e.occurred_at or now
+        if e.type == "exposure":
+            exp_id = exp_map.get(e.experiment_key or "")
+            if exp_id is None or not e.variant_key:
+                rejected += 1
+                continue
+            exposure_rows.append({
+                "experiment_id": exp_id, "user_id": e.user_id,
+                "variant_key": e.variant_key, "exposed_at": ts,
+                "event_id": e.event_id,
+            })
+        else:  # metric
+            if not e.metric_key:
+                rejected += 1
+                continue
+            metric_rows.append({
+                "project_id": project_id, "user_id": e.user_id,
+                "metric_key": e.metric_key, "value": e.value,
+                "occurred_at": ts, "event_id": e.event_id,
+            })
+
+    accepted = 0
+    accepted += _bulk_upsert(db, exposures_t, exposure_rows,
+                             ["experiment_id", "user_id"], exposures_t.c.user_id)
+    accepted += _bulk_upsert(db, metric_events_t, metric_rows,
+                             ["project_id", "event_id"], metric_events_t.c.id)
+    db.commit()
+
+    total = len(exposure_rows) + len(metric_rows)
+    return {"accepted": accepted, "duplicates": total - accepted,
+            "rejected": rejected}
+
+
+# ---------------------------------------------------------------------------
+# Results -- exposure/metric counts -> two-proportion test + SRM.
+# ---------------------------------------------------------------------------
+@app.get("/v1/experiments/{experiment_id}/results")
+def experiment_results(
+    experiment_id: str,
+    metric: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict:
+    exp = db.execute(
+        text("select project_id, key, status, planned_sample_size, "
+             "primary_metric_id from experiments where id = :id"),
+        {"id": experiment_id},
+    ).fetchone()
+    if exp is None:
+        raise HTTPException(status_code=404, detail="experiment not found")
+    project_id, exp_key, status, planned_n, primary_metric_id = exp
+
+    variants = db.execute(
+        text("select key, allocation_pct, is_control from variants "
+             "where experiment_id = :e order by key"),
+        {"e": experiment_id},
+    ).fetchall()
+
+    # exposed users per variant (the analysis population)
+    exposed_counts = {vk: 0 for vk, _, _ in variants}
+    for vk, c in db.execute(
+        text("select variant_key, count(*) from exposures "
+             "where experiment_id = :e group by variant_key"),
+        {"e": experiment_id},
+    ).fetchall():
+        if vk in exposed_counts:
+            exposed_counts[vk] = c
+    total_exposed = sum(exposed_counts.values())
+
+    # which metric? explicit query param, else the experiment's primary metric
+    metric_key = metric
+    if metric_key is None and primary_metric_id is not None:
+        row = db.execute(
+            text("select key from metric_definitions where id = :id"),
+            {"id": str(primary_metric_id)},
+        ).fetchone()
+        metric_key = row[0] if row else None
+
+    # conversions = exposed users with >= 1 metric event for that metric
+    conversions = {vk: 0 for vk in exposed_counts}
+    if metric_key:
+        for vk, c in db.execute(
+            text("select e.variant_key, count(distinct e.user_id) "
+                 "from exposures e where e.experiment_id = :e and exists "
+                 "(select 1 from metric_events m where m.project_id = :p "
+                 " and m.metric_key = :mk and m.user_id = e.user_id) "
+                 "group by e.variant_key"),
+            {"e": experiment_id, "p": str(project_id), "mk": metric_key},
+        ).fetchall():
+            if vk in conversions:
+                conversions[vk] = c
+
+    # SRM on the exposed population vs configured allocation
+    srm = srm_test(exposed_counts, {vk: float(a) for vk, a, _ in variants})
+
+    # control vs each treatment
+    control_key = next((vk for vk, _, isc in variants if isc),
+                       variants[0][0] if variants else None)
+    comparisons = []
+    if metric_key and control_key:
+        for vk in exposed_counts:
+            if vk == control_key:
+                continue
+            nc, xc = exposed_counts[control_key], conversions[control_key]
+            nt, xt = exposed_counts[vk], conversions[vk]
+            if nc > 0 and nt > 0:
+                r = two_proportion_test(nc, xc, nt, xt)
+                comparisons.append({
+                    "variant": vk, "vs": control_key,
+                    "control_rate": r.control_rate,
+                    "treatment_rate": r.treatment_rate,
+                    "absolute_lift": r.absolute_lift,
+                    "relative_lift": r.relative_lift,
+                    "ci_low": r.ci_low, "ci_high": r.ci_high,
+                    "p_value": r.p_value, "significant": r.significant,
+                })
+
+    # Verdict stays LOCKED until the planned sample size is reached (anti-peeking).
+    reached = total_exposed >= planned_n
+    any_significant = any(c["significant"] for c in comparisons)
+    if not reached:
+        verdict = "not_conclusive_yet"
+    elif any_significant:
+        verdict = "significant"
+    else:
+        verdict = "no_significant_difference"
+
+    return {
+        "experiment": {"key": exp_key, "status": status,
+                       "planned_sample_size": planned_n},
+        "metric": metric_key,
+        "total_exposed": total_exposed,
+        "reached_planned_sample_size": reached,
+        "peeking_warning": (not reached) and total_exposed > 0,
+        "srm": {"chi2": srm.chi2, "p_value": srm.p_value,
+                "flagged": srm.flagged, "observed": srm.observed},
+        "variants": [
+            {"key": vk, "n": exposed_counts[vk], "conversions": conversions[vk],
+             "rate": (conversions[vk] / exposed_counts[vk]
+                      if exposed_counts[vk] else None)}
+            for vk in exposed_counts
+        ],
+        "comparisons": comparisons,
+        "verdict": verdict,
+    }

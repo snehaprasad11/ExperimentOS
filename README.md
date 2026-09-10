@@ -36,7 +36,7 @@ textbook values, `statsmodels`, and the dataset's known published result.
 ## Roadmap
 
 - **v0.1** — stats core: two-proportion test (lift, CI, p-value) + sample-size/MDE calculator, validated three ways (textbook · statsmodels · real Cookie Cats result). ✅ **done**
-- **v0.2** — working MVP: FastAPI + Postgres + React, JS SDK with deterministic assignment, exposure tracking, ingestion, results with CIs, SRM detection. *(in progress: deterministic assignment core — Python + JS SDK, cross-language parity verified over 1,800 cases)*
+- **v0.2** — working MVP. *Backend done:* FastAPI + Postgres, deterministic assignment (Python + JS SDK, parity verified), exposure tracking, idempotent batched ingestion, results (lift/CI/p-value) with SRM and anti-peeking verdict lock — the full pipeline reproduces a real experiment's published result. *(next: React dashboard + live demo site)*
 - **v0.3** — guardrail metrics, segment analysis, quality-warning engine.
 - **v1.0** — CUPED, multiple-comparison correction, sequential testing, progressive rollout.
 
@@ -54,6 +54,10 @@ python -m analysis.cookie_cats     # run the engine on 90k real players
 The engine reproduces the dataset's known result — moving the game's progression
 gate from level 30 to 40 significantly **hurt** 7-day retention (p = 0.0016) — which
 serves as a third validation alongside the textbook and statsmodels checks.
+
+The same result is reproduced **through the full HTTP API** (create experiment → ingest
+~107k real events → results endpoint) by `python -m analysis.replay_cookie_cats_api`,
+proving the platform end to end, not just the statistics.
 
 ### Run the API
 
@@ -73,6 +77,8 @@ uvicorn backend.main:app --reload
 | POST | `/v1/experiments` | admin | Create experiment + variants (allocations sum to 100) |
 | PATCH | `/v1/experiments/{id}/status` | admin | Move through draft→running→stopped→rolled_out |
 | GET | `/v1/config/{sdk_key}` | sdk_key | Running experiments + variants for the SDK |
+| POST | `/v1/events` | sdk_key | Ingest exposure + metric events (idempotent, batched) |
+| GET | `/v1/experiments/{id}/results` | — | Lift, CI, p-value + SRM; verdict locked until planned N |
 
 Admin routes take `Authorization: Bearer <admin_key>`; the admin key is shown once at
 project creation and stored only as a hash.
@@ -96,10 +102,11 @@ sdk/            # the JS SDK
   verify_parity.mjs # checks JS against the shared golden fixture
 tracking/       # exposure tracking (the analysis population)
   exposure.py       # idempotency, first-exposure-wins, leakage, assignment audit
+quality/        # validity checks (SRM chi-square, threshold-strict)
 backend/        # FastAPI app wrapping the core in an HTTP API
-  main.py           # endpoints; config.py + db.py for settings + sessions
+  main.py           # endpoints; config.py + db.py + tables.py
 db/             # schema.sql (spec section 10) + apply_schema.py
-tests/          # 57 tests: stats + assignment + parity + exposure + api
+tests/          # 64 tests: stats + assignment + parity + exposure + srm + api
   fixtures/         # assignment_golden.json: the parity contract
 data/           # download.py: reproducible Kaggle pull (raw data gitignored)
 analysis/       # cookie_cats.py: the engine run on a real experiment

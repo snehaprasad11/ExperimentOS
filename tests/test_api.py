@@ -62,3 +62,18 @@ def test_creating_experiment_requires_admin_key(no_db):
                      {"key": "treatment", "allocation_pct": 50}],
     })
     assert r.status_code == 401
+
+
+def test_ingest_requires_sdk_key_header(no_db):
+    # Missing X-SDK-Key -> 422 (required header), before any DB access.
+    r = client.post("/v1/events", json={
+        "events": [{"event_id": "e1", "type": "metric",
+                    "user_id": "u1", "metric_key": "purchase"}],
+    })
+    assert r.status_code == 422
+
+
+def test_ingest_rejects_empty_batch(no_db):
+    r = client.post("/v1/events", headers={"X-SDK-Key": "sk_x"},
+                    json={"events": []})
+    assert r.status_code == 422   # min_length=1
