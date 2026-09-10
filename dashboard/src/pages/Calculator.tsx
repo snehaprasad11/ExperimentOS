@@ -51,7 +51,7 @@ export function Calculator() {
         </p>
       </header>
 
-      <div className="grid">
+      <div className="grid-2">
         <form className="card" onSubmit={onSubmit}>
           <h2>Inputs</h2>
 

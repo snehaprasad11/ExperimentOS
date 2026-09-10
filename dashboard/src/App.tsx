@@ -26,7 +26,7 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">◇ ExperimentOS</div>
+        <div className="brand"><span className="dot" /> ExperimentOS</div>
         <nav>
           {navItem('plan', 'Plan')}
           {navItem('experiments', 'Experiments')}
