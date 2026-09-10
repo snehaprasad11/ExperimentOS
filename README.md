@@ -75,8 +75,10 @@ cd dashboard && npm install && npm run dev
 # open http://localhost:5173  (dev server proxies /v1 -> the API on :8000)
 ```
 
-The dashboard's Plan page calls the live calculator endpoint; Experiments and
-Results pages are in progress.
+The dashboard has three pages: **Plan** (the sample-size calculator), **Experiments**
+(connect a project by admin key → list its experiments), and **Results** (lift, CI,
+p-value, the SRM validity banner, and a verdict that stays locked until the planned
+sample size is reached — anti-peeking). All talk to the live API.
 
 **Endpoints so far**
 
@@ -85,6 +87,7 @@ Results pages are in progress.
 | POST | `/v1/calculator/sample-size` | — | Plan an experiment (pure stats) |
 | POST | `/v1/projects` | — | Create a project (keys shown once) |
 | POST | `/v1/experiments` | admin | Create experiment + variants (allocations sum to 100) |
+| GET | `/v1/experiments` | admin | List the project's experiments |
 | PATCH | `/v1/experiments/{id}/status` | admin | Move through draft→running→stopped→rolled_out |
 | GET | `/v1/config/{sdk_key}` | sdk_key | Running experiments + variants for the SDK |
 | POST | `/v1/events` | sdk_key | Ingest exposure + metric events (idempotent, batched) |

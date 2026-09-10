@@ -77,3 +77,8 @@ def test_ingest_rejects_empty_batch(no_db):
     r = client.post("/v1/events", headers={"X-SDK-Key": "sk_x"},
                     json={"events": []})
     assert r.status_code == 422   # min_length=1
+
+
+def test_listing_experiments_requires_admin_key(no_db):
+    r = client.get("/v1/experiments")
+    assert r.status_code == 401

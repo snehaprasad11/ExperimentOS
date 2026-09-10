@@ -220,6 +220,28 @@ def update_experiment_status(
     return {"id": experiment_id, "status": body.status}
 
 
+@app.get("/v1/experiments")
+def list_experiments(
+    project_id: str = Depends(require_project),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    rows = db.execute(
+        text("select e.id, e.key, e.status, e.planned_sample_size, "
+             "e.started_at, count(v.id) as variants "
+             "from experiments e left join variants v on v.experiment_id = e.id "
+             "where e.project_id = :p "
+             "group by e.id order by e.started_at desc nulls last, e.key"),
+        {"p": project_id},
+    ).fetchall()
+    return [
+        {"id": str(r[0]), "key": r[1], "status": r[2],
+         "planned_sample_size": r[3],
+         "started_at": r[4].isoformat() if r[4] else None,
+         "variants": r[5]}
+        for r in rows
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Config (public) -- what the SDK fetches to assign users.
 # ---------------------------------------------------------------------------
