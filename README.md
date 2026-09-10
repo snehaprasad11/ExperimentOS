@@ -64,6 +64,19 @@ uvicorn backend.main:app --reload
 # open http://localhost:8000/docs for interactive API docs
 ```
 
+**Endpoints so far**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/v1/calculator/sample-size` | — | Plan an experiment (pure stats) |
+| POST | `/v1/projects` | — | Create a project (keys shown once) |
+| POST | `/v1/experiments` | admin | Create experiment + variants (allocations sum to 100) |
+| PATCH | `/v1/experiments/{id}/status` | admin | Move through draft→running→stopped→rolled_out |
+| GET | `/v1/config/{sdk_key}` | sdk_key | Running experiments + variants for the SDK |
+
+Admin routes take `Authorization: Bearer <admin_key>`; the admin key is shown once at
+project creation and stored only as a hash.
+
 ### Kaggle token (for the real-data analysis)
 
 Create a token at kaggle.com → Settings → API Tokens → *Create Legacy API Key*, then
