@@ -1,0 +1,7 @@
+# ExperimentOS — v0.1 statistics core
+numpy>=1.26
+scipy>=1.11
+statsmodels>=0.15
+pandas>=2.0
+pytest>=8.0
+kaggle>=1.6

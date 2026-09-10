@@ -1,0 +1,39 @@
+# --- Secrets & tokens (NEVER commit these) ---
+.env
+.env.*
+*.key
+*.pem
+kaggle.json
+.kaggle/
+secrets/
+**/credentials*
+
+# --- Raw data (pulled reproducibly via script, not committed) ---
+data/raw/
+data/*.csv
+data/*.zip
+*.parquet
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# --- Node (v0.2 SDK + dashboard) ---
+node_modules/
+dist/
+build/
+.next/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
