@@ -1,5 +1,9 @@
-// Typed client for the ExperimentOS API. In dev, requests to /v1/... are
-// proxied to the FastAPI backend (see vite.config.ts).
+// Typed client for the ExperimentOS API.
+//
+// In dev, VITE_API_BASE is unset, so requests go to relative /v1/... and Vite
+// proxies them to the backend (see vite.config.ts). In production, set
+// VITE_API_BASE to the deployed API origin (e.g. https://experimentos-api.onrender.com).
+const BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export interface SampleSizeResult {
   baseline_rate: number
@@ -21,7 +25,7 @@ export interface SampleSizeRequest {
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -48,7 +52,7 @@ export const setAdminKey = (k: string) => localStorage.setItem(ADMIN_KEY, k)
 async function get<T>(path: string, admin = false): Promise<T> {
   const headers: Record<string, string> = {}
   if (admin) headers.Authorization = `Bearer ${getAdminKey()}`
-  const res = await fetch(path, { headers })
+  const res = await fetch(BASE + path, { headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     const detail = (err as { detail?: unknown }).detail

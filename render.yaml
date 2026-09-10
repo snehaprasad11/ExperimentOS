@@ -1,0 +1,17 @@
+# Render blueprint for the ExperimentOS API.
+# In the Render dashboard: New + -> Blueprint -> pick this repo. Then set the
+# two secret env vars (DATABASE_URL, CORS_ORIGINS) in the service settings.
+services:
+  - type: web
+    name: experimentos-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL      # your Supabase Session-pooler URL
+        sync: false
+      - key: CORS_ORIGINS      # your Vercel URL, e.g. https://experimentos.vercel.app
+        sync: false

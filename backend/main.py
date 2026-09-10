@@ -20,11 +20,13 @@ Event ingestion and results arrive in the next slice.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -39,6 +41,19 @@ from .tables import exposures as exposures_t
 from .tables import metric_events as metric_events_t
 
 app = FastAPI(title="ExperimentOS API", version="0.2.0")
+
+# CORS: in production the dashboard is served from a different origin than the
+# API, so it needs explicit permission. Set CORS_ORIGINS to a comma-separated
+# list of allowed origins in production; defaults to "*" for local/demo use.
+# (We authenticate with header keys, not cookies, so credentials stay off.)
+_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 VALID_STATUSES = {"draft", "running", "stopped", "rolled_out", "archived"}
 
